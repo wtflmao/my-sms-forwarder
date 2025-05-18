@@ -24,17 +24,38 @@ import {
     KV_KEY_SMS_MESSAGES,
     SMS_EXPIRY_DURATION_MINUTES
 } from './config';
+import { jwt } from 'hono/jwt';
 
 // Initialize Hono app with Env types
 const app = new Hono<{ Bindings: Env }>();
 
-// Enable CORS for all routes to allow frontend to call Worker APIs
-app.use('*', cors({
-  origin: (c) => c.req.header('Origin') || '',
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['Content-Type'],
-  allowCredentials: true,
-}));
+// --- CORS Middleware ---
+// Apply CORS middleware to all routes or specific API routes
+app.use('*', async (c, next) => {
+  const middleware = cors({
+    origin: (origin: string, context: any) => {
+      // For local development, allow all origins or specific local dev origins
+      // In production, restrict to your frontend domain
+      const allowedOrigins = [
+        'http://localhost:5173', // SvelteKit default dev port
+        'http://127.0.0.1:5173',
+        'https://bili.xducraft.hhzm.win',
+        'https://my-sms-frontend.pages.dev'
+      ];
+      if (allowedOrigins.includes(origin)) {
+        return origin;
+      }
+      // Fallback or block if origin is not allowed and not a local dev scenario
+      // Consider returning a specific allowed origin or null to block if not matched
+      return c.env.ENVIRONMENT === 'development' ? origin : null; 
+    },
+    allowHeaders: ['Content-Type', 'Authorization'], // Ensure Authorization is included if you use it for JWT
+    allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true,
+    maxAge: 86400, // Cache preflight response for 1 day
+  });
+  return middleware(c, next);
+});
 
 // Middleware for Webhook Secret Validation
 app.use('/webhook/sms', async (c, next) => {
@@ -149,7 +170,7 @@ app.post('/api/verify-captcha', async (c) => {
             }),
         });
 
-        const outcome = await verificationResponse.json<TurnstileVerificationResponse>();
+        const outcome = await verificationResponse.json() as TurnstileVerificationResponse;
 
         if (outcome.success) {
             if (!c.env.JWT_SECRET) {
@@ -173,7 +194,7 @@ app.post('/api/verify-captcha', async (c) => {
             });
             return c.json({ success: true, message: 'Turnstile verification successful. JWT set.' });
         } else {
-            return c.json({ success: false, error: 'Turnstile verification failed', 'error-codes': outcome['error-codes'] }, 401);
+            return c.json({ success: false, error: 'Turnstile verification failed', 'error-codes': outcome['error-codes'] || [] }, 401);
         }
     } catch (e: any) {
         console.error('Error in /api/verify-captcha:', e.message);

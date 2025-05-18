@@ -10,6 +10,7 @@ export interface Env {
   CLOUDFLARE_TURNSTILE_SECRET_KEY: string;
   WEBHOOK_SECRET: string;
   JWT_SECRET: string;
+  ENVIRONMENT?: 'development' | 'production';
 
   // You can add other bindings or environment variables here if needed
   // e.g., MY_OTHER_VAR: string;
