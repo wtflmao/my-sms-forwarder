@@ -12,6 +12,7 @@
  */
 
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { setCookie, getCookie } from 'hono/cookie'; // Added getCookie
 import { sign, verify } from '@tsndr/cloudflare-worker-jwt'; // Will be used later
 import type { Env } from './env';
@@ -26,6 +27,14 @@ import {
 
 // Initialize Hono app with Env types
 const app = new Hono<{ Bindings: Env }>();
+
+// Enable CORS for all routes to allow frontend to call Worker APIs
+app.use('*', cors({
+  origin: (c) => c.req.header('Origin') || '',
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  allowCredentials: true,
+}));
 
 // Middleware for Webhook Secret Validation
 app.use('/webhook/sms', async (c, next) => {
